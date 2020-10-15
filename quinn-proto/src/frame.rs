@@ -583,9 +583,8 @@ impl Iter {
                 let delay = self.bytes.get_var()?;
                 let extra_blocks = self.bytes.get_var()? as usize;
                 let start = self.bytes.position() as usize;
-                let len = scan_ack_blocks(&self.bytes.bytes()[..], largest, extra_blocks)
-                    .ok_or(UnexpectedEnd)?;
-                self.bytes.advance(len);
+                let len =
+                    scan_ack_blocks(&mut self.bytes, largest, extra_blocks).ok_or(UnexpectedEnd)?;
                 Frame::Ack(Ack {
                     delay,
                     largest,
@@ -694,8 +693,8 @@ impl Iterator for Iter {
     }
 }
 
-fn scan_ack_blocks(packet: &[u8], largest: u64, n: usize) -> Option<usize> {
-    let mut buf = io::Cursor::new(packet);
+fn scan_ack_blocks(buf: &mut io::Cursor<Bytes>, largest: u64, n: usize) -> Option<usize> {
+    let start = buf.position();
     let first_block = buf.get_var().ok()?;
     let mut smallest = largest.checked_sub(first_block)?;
     for _ in 0..n {
@@ -704,7 +703,7 @@ fn scan_ack_blocks(packet: &[u8], largest: u64, n: usize) -> Option<usize> {
         let block = buf.get_var().ok()?;
         smallest = smallest.checked_sub(block)?;
     }
-    Some(buf.position() as usize)
+    Some((buf.position() - start) as usize)
 }
 
 #[derive(Debug, Clone)]
